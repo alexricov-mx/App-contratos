@@ -1,6 +1,6 @@
 # Requerimientos — App-Contratos
 
-> Versión 0.3 · 2026-09-24 · Estado: borrador para revisión
+> Versión 0.4 · 2026-09-24 · Estado: borrador para revisión
 
 ## 0. Decisiones confirmadas
 
@@ -8,16 +8,18 @@
 |---|---|
 | Jurisdicción | **México** |
 | Clientes objetivo | **Negocios locales pequeños** (micro y pequeñas empresas, personas físicas con actividad empresarial) |
-| Proyectos | **3 proyectos**: App de campo, API y Portal de administración (+ infraestructura) |
+| Proyectos | **3 proyectos, un repositorio cada uno**: App de campo, API (incluye despliegue) y Portal, más un repositorio de paquetes Dart compartidos. La documentación vive en su propio repositorio (ver §10) |
 | App de campo | Flutter móvil, dispositivos **Samsung con S Pen** (teléfono y tableta) |
 | BD local (App) | **SQLite** (drift). Todo se guarda primero aquí |
 | API | **.NET 10**, **Vertical Slice Architecture**, en **contenedor** en el VPS. **Único punto de acceso a PostgreSQL** |
+| Hospedaje | **OVHcloud**: VPS con Docker (v1); a futuro OVH Managed PostgreSQL y OVH Object Storage (S3 compatible) |
 | BD central | **PostgreSQL en contenedor** en el VPS (v1), preparada para migrar a un **PostgreSQL administrado** |
-| Portal de administración | Aplicación web para la oficina: CRM, eventos de compra, seguimiento de entrega, contactos, configuración |
+| Portal de administración | **Flutter Web**. CRM, eventos de compra, seguimiento de entrega, contactos, **editor de contratos**, configuración |
 | Integración App ↔ API | **Envío de eventos** (no sincronización total) + **sincronización de clientes del CRM** y catálogo |
 | Firma del comprador | **De un solo uso**: se firma de nuevo en cada evento/documento |
 | Identificación | Pre-registro sin identificación; **registro completo exige identificación oficial** |
-| Odoo | No en v1 (ver §7.4) |
+| Odoo | No en v1 (ver §7.5) |
+| Construcción | Desarrollo asistido por Claude a partir de esta documentación, [contrato-api.md](contrato-api.md) y los [planes por repositorio](planes/) |
 
 ## 1. Visión
 
@@ -207,16 +209,42 @@ Objetivo: poder pasar del PostgreSQL en contenedor a un **PostgreSQL administrad
 - **RFP-20** Registro de pagos (pago único, anticipo, mensualidades) con comprobante.
 - **RFP-21** Suscripciones: inicio, periodicidad, día de corte, estado (`ACTIVA`, `VENCIDA`, `SUSPENDIDA`, `CANCELADA`), alertas de vencimiento.
 - **RFP-22** Catálogo de productos (tipo OFFLINE/ONLINE, plataformas, funcionalidades, precio, plantilla).
-- **RFP-23** Plantillas de contrato y actas con variables y **versionado** (un documento firmado conserva la versión con que se firmó).
+- **RFP-23** Plantillas de contrato y actas con **editor de contenido** y **versionado** (ver §7.4).
 - **RFP-24** Usuarios y roles; perfil de la empresa vendedora (razón social, RFC, domicilio, logo).
 - **RFP-25** Tablero: clientes por completar, eventos recibidos hoy, entregas atrasadas, suscripciones por vencer, pagos atrasados, **dispositivos con eventos sin enviar** (según última conexión reportada).
 - **RFP-26** **Configuración de infraestructura** (solo superadmin): conexión a BD (§6.4), almacenamiento de archivos, respaldos (última ejecución, descarga).
 
-### 7.4 ¿Odoo?
-No en v1. Tendría su propia base de datos y habría que sincronizar tres lugares; no resuelve el trabajo offline ni la firma con S Pen; los módulos útiles (suscripciones, firma, CFDI) son de pago por usuario; y agrega Python como tercer stack. Si después se necesita contabilidad o facturación, se integra como sistema **secundario** (la API le envía datos ya cerrados, en un solo sentido), o se usa un PAC con API para CFDI.
+### 7.4 Editor de contratos y plantillas
 
-### 7.5 Tecnología del Portal
-Recomendación: **Flutter Web**, para compartir modelos, validaciones y cliente HTTP con la App mediante un paquete Dart común. Alternativa si se prefiere todo en .NET: **Blazor**. Decidir en Fase 0.
+El administrador edita desde el Portal el **texto** de cada plantilla: contrato A, contrato B, acta de entrega, convenio modificatorio y convenio de terminación. El sistema sustituye los datos del comprador y del vendedor y agrega **siempre** al final la sección de nombres y firmas.
+
+- **RFP-30** **Editor de texto enriquecido** (flutter_quill) limitado a lo que el PDF sabe dibujar: títulos (niveles 1–3), párrafo, negrita, cursiva, subrayado, listas numeradas y con viñetas, alineación y salto de página.
+- **RFP-31** **Variables** insertadas desde un panel lateral (no se escriben a mano), mostradas en el editor como etiquetas de color, p. ej. `{{comprador.nombre}}`:
+
+  | Grupo | Variables |
+  |---|---|
+  | Comprador | `comprador.nombre`, `comprador.tipoPersona`, `comprador.rfc`, `comprador.domicilio`, `comprador.representante`, `comprador.identificacion` (tipo y número), `comprador.telefono`, `comprador.email` |
+  | Vendedor | `vendedor.nombre` (razón social), `vendedor.representante` (usuario que firma), `vendedor.rfc`, `vendedor.domicilio` |
+  | Operación | `evento.folio`, `evento.fecha`, `evento.lugar`, `producto.nombre`, `producto.plataformas`, `precio.total`, `precio.anticipo`, `precio.periodicidad`, `precio.diaCorte`, `entrega.fechaCompromiso` |
+  | Bloques | `anexo.alcance` (tabla de funcionalidades incluidas/excluidas), `anexo.pagos` (calendario de pagos), `contratoOrigen.folio`, `contratoOrigen.hash` (solo actas y convenios) |
+
+- **RFP-32** **Bloques condicionales** para no duplicar plantillas: `{{#si producto.online}} … {{/si}}` y `{{#si comprador.personaMoral}} … {{/si}}`, insertados desde el panel.
+- **RFP-33** **Sección de nombres y firmas fija**: no forma parte del texto editable y no se puede borrar. El generador de PDF la agrega **siempre al final del contenido**:
+  1. Contenido de la plantilla (cláusulas y anexos).
+  2. **Sección de firmas**: leyenda de cierre (“Leído que fue el presente documento y enteradas las partes de su contenido y alcance, lo firman en `{{evento.lugar}}` el `{{evento.fecha}}`”) y dos columnas:
+     - **EL VENDEDOR**: imagen de firma, línea, `vendedor.nombre`, “Representada por `vendedor.representante`”.
+     - **EL COMPRADOR**: imagen de firma, línea, `comprador.nombre` y, si es persona moral, “Representada por `comprador.representante`”.
+     - El bloque nunca se parte entre páginas: si no cabe, pasa completo a la siguiente.
+  3. **Hoja de constancia de firma electrónica** (evidencias, folio, hash).
+- **RFP-34** Opción por plantilla **“Rúbrica en cada página”**: estampa en pequeño, en el margen de cada hoja, la firma del comprador **del mismo evento**. Sigue siendo la firma de un solo uso (RN-05).
+- **RFP-35** **Vista previa en PDF** en el Portal con datos de ejemplo (persona física/moral, offline/online) usando **el mismo generador de PDF que la App** (paquete `contratos_pdf`, §10): lo que se ve en el Portal es exactamente lo que se firmará en campo.
+- **RFP-36** **Validación al guardar**: variables desconocidas, bloques `si` sin cerrar o formato no soportado impiden publicar y se señala el error.
+- **RFP-37** **Versionado**: cada “Publicar” crea una versión nueva, inmutable, con autor, fecha y nota de cambio. Las Apps reciben la versión publicada en su siguiente sincronización. Se puede duplicar una versión anterior como borrador. Un documento firmado conserva siempre la versión con que se firmó.
+- **RFP-38** Estados: `BORRADOR` (solo Portal) → `PUBLICADA` (la reciben las Apps) → `RETIRADA` (no se ofrece para eventos nuevos).
+- **RFP-39** Almacenamiento: JSON **Quill Delta** con las variables como texto `{{...}}`.
+
+### 7.5 ¿Odoo?
+No en v1. Tendría su propia base de datos y habría que sincronizar tres lugares; no resuelve el trabajo offline ni la firma con S Pen; los módulos útiles (suscripciones, firma, CFDI) son de pago por usuario; y agrega Python como tercer stack. Si después se necesita contabilidad o facturación, se integra como sistema **secundario** (la API le envía datos ya cerrados, en un solo sentido), o se usa un PAC con API para CFDI.
 
 ## 8. Requerimientos no funcionales
 
@@ -235,7 +263,7 @@ Recomendación: **Flutter Web**, para compartir modelos, validaciones y cliente 
 | RNF-21 | Configuración externalizada: nada de cadenas de conexión ni secretos dentro de la imagen del contenedor. |
 | RNF-22 | Logs estructurados (Serilog) y endpoint `/health` que incluya estado de la BD y del almacenamiento. |
 
-## 9. Infraestructura (v1)
+## 9. Infraestructura (v1, OVHcloud)
 
 ```
                         Internet (HTTPS)
@@ -254,7 +282,7 @@ Recomendación: **Flutter Web**, para compartir modelos, validaciones y cliente 
 │ └────────┘ └───────────────────┘    │  internet)        │   │
 │                                     └───────────────────┘   │
 │  ┌───────────────┐                                          │
-│  │ Respaldos     │ pg_dump + archivos → almacenamiento externo│
+│  │ Respaldos     │ pg_dump + archivos → OVH Object Storage   │
 │  └───────────────┘                                          │
 └─────────────────────────────────────────────────────────────┘
         ▲
@@ -262,31 +290,42 @@ Recomendación: **Flutter Web**, para compartir modelos, validaciones y cliente 
    App de campo (Samsung + S Pen, SQLite)
 ```
 
-**Futuro:** PostgreSQL pasa a un servicio administrado (se cambia desde el Portal, §6.4) y los archivos a almacenamiento de objetos (§6.5). El contenedor de PostgreSQL se retira.
+**Futuro:** PostgreSQL pasa a **OVH Managed PostgreSQL** (se cambia desde el Portal, §6.4) y los archivos a **OVH Object Storage** (§6.5). El contenedor de PostgreSQL se retira.
 
-## 10. Estructura del repositorio
+Las imágenes de contenedor las publica el CI de cada repositorio en GitHub Container Registry; en el VPS solo se ejecuta `docker compose pull && docker compose up -d`.
+
+## 10. Repositorios
+
+| Repositorio | Contenido | Artefacto |
+|---|---|---|
+| `App-contratos` (existente) | Esta documentación, [contrato-api.md](contrato-api.md), [planes/](planes/) | — |
+| `contratos-api` | API .NET 10 (VSA) + `deploy/` (docker-compose, Caddy, respaldos, migración de BD) | Imagen `contratos-api` |
+| `contratos-app` | App de campo Flutter (Android/iOS) | APK / AAB |
+| `contratos-portal` | Portal Flutter Web | Imagen `contratos-portal` (Nginx con el build web) |
+| `contratos-dart` | Paquetes Dart compartidos: `contratos_modelos` (DTOs + cliente HTTP) y `contratos_pdf` (motor de plantillas + generador de PDF) | Dependencia git fijada a un tag |
+
+**¿Por qué `contratos-dart`?** App y Portal deben producir **exactamente el mismo PDF** con la misma plantilla (el Portal para la vista previa, la App para firmar). Con un solo generador compartido no hay diferencias entre lo que se aprueba en oficina y lo que se firma en campo.
+
+Cada repositorio de código lleva un `CLAUDE.md` que apunta a esta documentación y a su plan de trabajo.
+
+### Estructura de `contratos-api`
 
 ```
-App-Contratos/
-  docs/                 Requerimientos, casos de uso, plan, contratos
-  app/                  Flutter — App de campo (Android/iOS)
-  portal/               Portal de administración (Flutter Web o Blazor)
-  packages/
-    contratos_core/     (si Portal es Flutter) modelos, validaciones, cliente API en Dart
-  api/
-    src/AppContratos.Api/
-      Features/
-        Auth/  Clientes/  Contactos/  Catalogo/  Plantillas/
-        Eventos/  Seguimiento/  Pagos/  Suscripciones/
-        Usuarios/  Infraestructura/  Sync/
-      Common/           Auth, errores, auditoría, almacenamiento, configuración dinámica de BD
-      Data/             AppDbContext (EF Core + Npgsql), migraciones
-    tests/
-    Dockerfile
-  infra/
-    docker-compose.yml
-    Caddyfile
-    backups/            Scripts de respaldo y de migración de BD (pg_dump/pg_restore)
+contratos-api/
+  src/Contratos.Api/
+    Features/
+      Auth/  Usuarios/  Clientes/  Identificaciones/  Contactos/  Interacciones/
+      Catalogo/  Plantillas/  Eventos/  Seguimiento/  Pagos/  Suscripciones/
+      Sync/  Tablero/  Infraestructura/
+    Common/        Auth, errores (ProblemDetails), auditoría, almacenamiento, conexión dinámica de BD
+    Data/          ContratosDbContext (EF Core + Npgsql), migraciones
+  tests/Contratos.Api.Tests/   (xUnit + Testcontainers)
+  deploy/
+    docker-compose.yml  Caddyfile  .env.example
+    backups/       pg_dump programado → OVH Object Storage
+    db-migracion/  pg_dump/pg_restore guiado
+  Dockerfile
+  CLAUDE.md
 ```
 
 ## 11. Modelo de datos (PostgreSQL)
@@ -300,8 +339,9 @@ App-Contratos/
 - `interaccion` (id, cliente_id, contacto_id, tipo, fecha, usuario_id, nota, proximo_seguimiento)
 - `producto` (id, nombre, tipo [`OFFLINE`/`ONLINE`], plataformas, precio, periodicidad, plantilla_id)
 - `producto_funcionalidad` (id, producto_id, descripcion)
-- `plantilla` (id, nombre, tipo_documento, version, contenido, vigente)
-- `evento` (id [UUID de la App], folio, tipo [`VENTA`/`ENTREGA`/`MODIFICACION`/`CANCELACION`], evento_origen_id, cliente_id, vendedor_id, plantilla_id, plantilla_version, monto, modalidad_pago, fecha_firma, fecha_recepcion_servidor, pdf_archivo_id, pdf_hash, dispositivo)
+- `plantilla` (id, nombre, tipo_documento [`CONTRATO_OFFLINE`/`CONTRATO_ONLINE`/`ACTA_ENTREGA`/`CONVENIO_MODIFICATORIO`/`CONVENIO_TERMINACION`], estado [`BORRADOR`/`PUBLICADA`/`RETIRADA`], borrador_delta [jsonb])
+- `plantilla_version` (id, plantilla_id, numero, contenido_delta [jsonb], rubrica_por_pagina, nota_cambio, autor_id, publicada_en) — inmutable una vez publicada
+- `evento` (id [UUID de la App], folio, tipo [`VENTA`/`ENTREGA`/`MODIFICACION`/`CANCELACION`], evento_origen_id, cliente_id, vendedor_id, plantilla_version_id, monto, modalidad_pago, fecha_firma, fecha_recepcion_servidor, pdf_archivo_id, pdf_hash, dispositivo)
 - `evento_producto` (id, evento_id, producto_id, precio, alcance_json)
 - `firma_evidencia` (id, evento_id, documento_hash, firmante [`VENDEDOR`/`COMPRADOR`], nombre, imagen_archivo_id, trazo_archivo_id, tipo_entrada [`S_PEN`/`DEDO`], fecha_dispositivo, lat, lng, dispositivo, identificacion_id, selfie_archivo_id) — **una por firma y por documento; nunca se reutiliza**
 - `seguimiento` (id, evento_venta_id, estado, responsable_id, fecha_compromiso, fecha_entrega)
@@ -324,6 +364,6 @@ App-Contratos/
 
 ## 13. Pendientes
 
-- Tecnología del Portal: Flutter Web (recomendado) o Blazor.
-- Proveedor del VPS y del almacenamiento externo de respaldos.
-- Revisión de plantillas por un **abogado**. Nota: aunque los clientes son negocios, la Ley Federal de Protección al Consumidor da ciertas protecciones a micro y pequeños negocios; las cláusulas deben ser claras y equilibradas.
+- Revisión de plantillas por un **abogado**. Aunque los clientes son negocios, la Ley Federal de Protección al Consumidor da ciertas protecciones a micro y pequeños negocios; las cláusulas deben ser claras y equilibradas.
+- Contratar VPS en OVHcloud, dominio y DNS (p. ej. `api.tudominio.mx`, `portal.tudominio.mx`).
+- Crear los repositorios `contratos-api`, `contratos-app`, `contratos-portal`, `contratos-dart`.

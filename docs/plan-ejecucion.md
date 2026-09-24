@@ -1,180 +1,78 @@
-# Plan de ejecución por fases — App-Contratos
+# Plan de ejecución — App-Contratos
 
-> Versión 0.3 · 2026-09-24 · Referencias: [requerimientos.md](requerimientos.md), [casos-de-uso.md](casos-de-uso.md)
+> Versión 0.4 · 2026-09-24 · Referencias: [requerimientos.md](requerimientos.md), [casos-de-uso.md](casos-de-uso.md), [contrato-api.md](contrato-api.md)
 
-**Principios**
-- Cada fase termina con algo que se puede probar de punta a punta.
-- La API y la infraestructura van primero porque App y Portal dependen de ellas.
-- La **configuración dinámica de la BD** se diseña desde la Fase 1 (conexión leída de configuración externa, esquema compatible con PostgreSQL administrado), aunque la pantalla del Portal llegue al final.
-- Mientras el Portal no exista, catálogo, plantillas y usuarios se cargan con **datos semilla** y la documentación OpenAPI.
+## 1. Enfoque
 
-Proyectos: **API** (.NET 10) · **App** (Flutter móvil) · **Portal** (web) · **Infra** (Docker en VPS).
+El código lo construye **Claude** a partir de esta documentación, con un **repositorio por proyecto** y una **sesión de Claude por repositorio** trabajando en paralelo. Para que las sesiones no se desalineen:
 
----
+1. **[contrato-api.md](contrato-api.md) es la frontera** entre repositorios. API, App y Portal se construyen contra él, no uno contra el otro. Si algo cambia, primero se actualiza el contrato.
+2. Cada repositorio tiene su **plan de trabajo** en [planes/](planes/) con tareas numeradas, criterios de aceptación y comandos de verificación.
+3. Cada repositorio lleva un `CLAUDE.md` con: enlace a esta documentación, stack, convenciones, cómo compilar/probar y “no inventar endpoints fuera de contrato-api.md”.
+4. Se trabaja por **tareas pequeñas verificables**: cada tarea termina con compilación + pruebas en verde y un commit.
+5. Cada feature genera sus documentos de **requerimiento, análisis, plan, pruebas y resumen** y actualiza `ESTADO.md`, según [proceso/flujo-de-trabajo.md](proceso/flujo-de-trabajo.md).
 
-## Fase 0 · Fundamentos e infraestructura (1–2 semanas)
+## 2. Repositorios y planes
 
-| Proyecto | Tarea | Entregable |
+| Repositorio | Plan | Depende de |
 |---|---|---|
-| — | Decidir tecnología del Portal (Flutter Web recomendado / Blazor) y proveedor del VPS | Nota de decisión |
-| Repo | Estructura `app/`, `portal/`, `api/`, `infra/`, `packages/`, `docs/`; git, CI (build + tests por proyecto) | Repo base |
-| Infra | `docker-compose.yml`: proxy (Caddy, TLS), API, PostgreSQL (volumen, sin puerto público), respaldos | Stack levantado en el VPS |
-| API | Proyecto .NET 10 Minimal APIs con estructura VSA, EF Core + Npgsql, Serilog, OpenAPI/Scalar, `/health` | API desplegada en contenedor |
-| App | Proyecto Flutter con drift (SQLCipher), riverpod, go_router, dio | App compila en el Samsung |
-| App | **Prototipo del lienzo con S Pen** (solo stylus, presión, trazo vectorial) en teléfono y tableta | Demo validada |
-| Legal | **Enviar [contrato-base.md](contrato-base.md) a revisión de abogado** (en paralelo) | Plantillas validadas |
+| `contratos-dart` | [planes/plan-dart.md](planes/plan-dart.md) | contrato-api.md |
+| `contratos-api` | [planes/plan-api.md](planes/plan-api.md) | contrato-api.md |
+| `contratos-app` | [planes/plan-app.md](planes/plan-app.md) | `contratos-dart` |
+| `contratos-portal` | [planes/plan-portal.md](planes/plan-portal.md) | `contratos-dart` |
 
-**Criterio de salida:** la API responde `/health` por HTTPS desde el VPS y el lienzo funciona bien con el S Pen en ambos dispositivos.
+## 3. Calendario (2 días)
 
----
+```
+            Día 1 — mañana        Día 1 — tarde           Día 2 — mañana          Día 2 — tarde
+Dart     │ D1 modelos+cliente │ D2 motor plantillas+PDF│ (ajustes)             │
+API      │ A1 base+BD+auth    │ A2 CRM+catálogo+plantil│ A3 sync+eventos        │ A4 seguim+pagos+infra BD │ A5 deploy OVH
+App      │ P0 base+lienzo SPen│ P1 SQLite+clientes+sync│ P2 venta+PDF+firma     │ P3 envío eventos         │
+Portal   │                    │ W0 base+login+CRM      │ W1 editor plantillas   │ W2 eventos+seguim+pagos+infra│
+Integr.  │                    │                        │                        │ Prueba de punta a punta  │
+```
 
-## Fase 1 · API núcleo (2 semanas)
+| Hito | Cuándo | Qué se puede probar |
+|---|---|---|
+| H1 | Fin día 1 mañana | API responde `/health` en contenedor local; lienzo S Pen funcionando en el Samsung |
+| H2 | Fin día 1 | Clientes y catálogo sincronizan App ↔ API local; Portal lista clientes; `contratos_pdf` genera un PDF con bloque de firmas |
+| H3 | Día 2 mediodía | Venta firmada en modo avión; editor de plantillas publica una versión que llega a la App |
+| H4 | Fin día 2 | **Punta a punta en OVH**: pre-registro → registro con INE → venta → firma con S Pen → envío → visible en Portal → acta de entrega → seguimiento `ENTREGADO` |
 
-| Slice / tarea | Detalle |
-|---|---|
-| **Configuración de BD desacoplada** | Proveedor de cadena de conexión leído de archivo cifrado en volumen (+ variables de entorno como valor inicial); `DbContext` creado vía fábrica que usa la conexión activa; SSL configurable |
-| Migraciones | Esquema inicial completo (§11 de requerimientos); migraciones como **EF bundle** ejecutable contra cualquier servidor |
-| `Auth/*` | Login, refresh, roles, hash de contraseñas |
-| `Usuarios/*` | CRUD básico + semilla de superadmin |
-| `Clientes/*`, `Identificaciones/*` | CRUD con estado de registro |
-| `Catalogo/*`, `Plantillas/*` | CRUD + versionado de plantillas + semilla de las 2 plantillas base |
-| Almacenamiento | `IAlmacenamientoArchivos` con implementación en volumen, cifrado en reposo |
-| Auditoría | Registro de escrituras y accesos a archivos sensibles |
-| Tests | Pruebas de integración con PostgreSQL en contenedor (Testcontainers) |
+### Mock de la API
+Mientras `contratos-api` no esté lista, App y Portal usan un **mock** generado desde el OpenAPI (o las respuestas de ejemplo de contrato-api.md) incluido en `contratos_modelos` (`ApiMock`). Así el día 1 no se bloquea nadie.
 
-**Criterio de salida:** con Scalar/Swagger se puede crear usuarios, clientes, productos y plantillas en el PostgreSQL del VPS.
+## 4. Fuera del control de Claude (hacerlo en paralelo)
 
----
+Estos puntos **no** caben en los 2 días de construcción y conviene arrancarlos ya:
 
-## Fase 2 · App: datos locales, clientes y sincronización CRM (3 semanas)
+| Tarea | Responsable | Bloquea |
+|---|---|---|
+| Contratar VPS OVHcloud, dominio y DNS (`api.`, `portal.`) | Tú | Despliegue (A5) |
+| Crear repositorios en GitHub y dar acceso | Tú | Todo |
+| Tener a mano el teléfono y la tableta Samsung con **depuración USB** habilitada | Tú | Pruebas de S Pen |
+| **Revisión de plantillas por un abogado** | Abogado | Uso con clientes reales (no bloquea construcción: se usan las plantillas base de [contrato-base.md](contrato-base.md)) |
+| Aviso de privacidad (LFPDPPP) | Abogado | Uso con clientes reales |
+| Pruebas con usuarios reales en campo | Tú | Salida a producción |
+| Publicación en Google Play (si aplica; si no, APK instalado directamente) | Tú | Distribución |
 
-**Casos de uso:** CU-A01, CU-A02, CU-A03, CU-A04, CU-A05, CU-S02
+## 5. Definición de terminado (v1)
 
-| Proyecto | Feature |
-|---|---|
-| App | Esquema SQLite (drift) y **capa de repositorios**: toda escritura va a SQLite |
-| App | Login, sesión persistente, PIN/biometría |
-| App | Firma del vendedor con S Pen |
-| App | Pre-registro rápido y registro completo con **captura de identificación** por cámara |
-| App | Pantalla de sincronización: subir clientes, bajar clientes, bajar catálogo y plantillas; marca de última sincronización |
-| API | `Clientes/Sync` (push/pull con resolución por campo) y `Catalogo/Sync` (pull) |
+- [ ] Los 4 repositorios compilan y sus pruebas pasan en CI.
+- [ ] API y Portal desplegados en el VPS OVH con HTTPS.
+- [ ] Recorrido H4 completo en el Samsung real con S Pen.
+- [ ] Un evento reenviado dos veces no se duplica; un evento con el PDF alterado se rechaza.
+- [ ] Una plantilla editada y publicada en el Portal se ve igual en la vista previa y en el PDF firmado en la App.
+- [ ] Respaldo diario de PostgreSQL ejecutándose y restaurado al menos una vez.
+- [ ] Simulacro de cambio de conexión de BD desde el Portal (a una segunda BD en el mismo VPS) y reversión.
 
-**Criterio de salida:** un cliente pre-registrado en modo avión aparece en PostgreSQL tras sincronizar, y un cambio hecho en la BD llega al dispositivo.
-
----
-
-## Fase 3 · App: evento de venta, PDF y firma (3 semanas)
-
-**Casos de uso:** CU-A06, CU-A07
-
-| Feature | Detalle |
-|---|---|
-| Asistente de venta | Cliente → productos → ajustes → vista previa |
-| Motor de plantillas + PDF | Variables, bloques offline/online, anexo de alcance, folio, paginación |
-| Modo presentación | Pantalla bloqueada para el comprador; lectura completa obligatoria; casillas de aceptación |
-| Firma con S Pen | Lienzo del prototipo de Fase 0; imagen + trazo vectorial; alternativa con dedo |
-| Firma de un solo uso | Ligada al hash; sin reutilización; eliminación si se cancela |
-| Confirmación del vendedor | PIN/biometría |
-| Evidencias y constancia | Geolocalización, dispositivo, identificación, selfie opcional; SHA-256; hoja de constancia |
-| Compartir | WhatsApp/correo desde Android |
-
-**Criterio de salida:** en modo avión se cierra una venta completa y se obtiene el PDF firmado con constancia.
-
----
-
-## Fase 4 · Envío de eventos App → API (2 semanas) — **MVP de punta a punta**
-
-**Casos de uso:** CU-A08, CU-A09, CU-S01
-
-| Proyecto | Feature |
-|---|---|
-| API | `Eventos/Recibir` multipart, idempotente por UUID, verificación de hash, transacción única, fecha de recepción, creación de seguimiento/suscripción |
-| API | `Eventos/Estado` para confirmar recepción |
-| App | Servicio de envío: automático al firmar, reintento con espera progresiva al recuperar conexión (monitoreo de conectividad + tarea en segundo plano) |
-| App | Pantalla **Eventos pendientes de envío** con envío manual individual y masivo, motivo del error |
-| App | Indicador en la pantalla principal (en línea / sin conexión / N pendientes) |
-| App | Política de depuración local de eventos ya enviados |
-
-**Criterio de salida:** una venta firmada sin red se envía sola al volver la conexión; si se fuerza un error, se puede reenviar a mano; reenviar dos veces no duplica.
-
----
-
-## Fase 5 · Portal: CRM, contactos y eventos (3 semanas)
-
-**Casos de uso:** CU-P01, CU-P02, CU-P03, CU-P04, CU-P07, CU-P08, CU-P09
-
-| Proyecto | Feature |
-|---|---|
-| Portal | Login, estructura de navegación, roles |
-| Portal | Tablero inicial |
-| Portal | Clientes: listado, ficha, **bandeja por completar**, fusión de duplicados |
-| Portal | **Contactos** e **interacciones** con próximos seguimientos |
-| Portal | Eventos de compra: listado, detalle, PDF, constancia, evidencias |
-| Portal | Catálogo, plantillas (editor + versionado), usuarios |
-| Portal | Verificador de integridad |
-| API | Slices `Contactos/*`, `Interacciones/*`, `Eventos/Consultar`, `Tablero/*`, `Clientes/Fusionar` |
-
-**Criterio de salida:** la oficina completa un pre-registro hecho en campo y el cambio llega a la App; se consulta cualquier venta con su PDF.
-
----
-
-## Fase 6 · Seguimiento de entrega, pagos y suscripciones (2–3 semanas)
-
-**Casos de uso:** CU-A10, CU-P05, CU-P06
-
-| Proyecto | Feature |
-|---|---|
-| App | Eventos `ENTREGA`, `MODIFICACION`, `CANCELACION` ligados a una venta (con firma nueva) |
-| API | `Seguimiento/*`, `Pagos/*`, `Suscripciones/*`; transiciones automáticas al recibir `ENTREGA`/`CANCELACION` |
-| Portal | Tablero de seguimiento de entrega: estados, responsable, fecha compromiso, tareas, atrasos |
-| Portal | Registro de pagos con comprobante; gestión de suscripciones; alertas |
-
-**Criterio de salida:** una venta pasa de `RECIBIDO` a `ENTREGADO` al firmar el acta en campo, y el tablero muestra entregas atrasadas y pagos vencidos.
-
----
-
-## Fase 7 · Infraestructura administrable (1–2 semanas)
-
-**Casos de uso:** CU-P10, CU-S03
-
-| Proyecto | Feature |
-|---|---|
-| API | `Infraestructura/BaseDatos`: probar conexión, verificar esquema, modo mantenimiento, cambio en caliente, verificación, revertir |
-| API / Infra | Proceso guiado `pg_dump`/`pg_restore` con progreso |
-| Portal | Pantalla de configuración de BD (superadmin + 2FA), almacenamiento y respaldos |
-| Infra | Respaldos automáticos a almacenamiento externo; prueba de restauración documentada |
-| — | **Simulacro**: migrar a un PostgreSQL administrado de prueba y regresar |
-
-**Criterio de salida:** el simulacro de migración se completa desde el Portal sin perder eventos (la App los encola durante el mantenimiento).
-
----
-
-## Fase 8 · Refuerzo legal y extras (según prioridad)
+## 6. Después de v1
 
 | Feature | Valor |
 |---|---|
-| Verificación OTP del comprador (correo/SMS) | Refuerza la identidad del firmante |
+| OTP al comprador (correo/SMS) | Refuerza la identidad del firmante |
 | Constancia **NOM-151** vía Prestador de Servicios de Certificación | Máxima fuerza probatoria |
+| Migración real a **OVH Managed PostgreSQL** y **OVH Object Storage** | Operación sin mantener la BD en el VPS |
 | Pasarela de pago recurrente (Stripe / Mercado Pago / Conekta) | Cobro automático de suscripciones |
-| Facturación CFDI (PAC con API, o integración en un solo sentido con Odoo) | Facturar ventas y suscripciones |
-| Almacenamiento de objetos (S3/Blob) | Sacar archivos del VPS |
+| Facturación CFDI (PAC con API) | Facturar ventas y suscripciones |
 | Portal del cliente final | Autoservicio |
-
----
-
-## Resumen de tiempos (estimado, 1 desarrollador)
-
-| Fase | Duración | Acumulado |
-|---|---|---|
-| 0 · Fundamentos e infraestructura | 1–2 sem | 2 sem |
-| 1 · API núcleo | 2 sem | 4 sem |
-| 2 · App: datos, clientes, sync CRM | 3 sem | 7 sem |
-| 3 · App: venta, PDF, firma | 3 sem | 10 sem |
-| 4 · Envío de eventos (**MVP**) | 2 sem | 12 sem |
-| 5 · Portal: CRM, contactos, eventos | 3 sem | 15 sem |
-| 6 · Entrega, pagos, suscripciones | 2–3 sem | 18 sem |
-| 7 · Infraestructura administrable | 1–2 sem | 20 sem |
-| 8 · Extras | variable | — |
-
-**MVP en campo con respaldo central:** fin de Fase 4 (~12 semanas).
-**Versión 1.0:** fin de Fase 7 (~20 semanas).

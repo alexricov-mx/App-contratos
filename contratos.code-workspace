@@ -1,0 +1,25 @@
+{
+  "folders": [
+    { "name": "📘 App-contratos (docs)", "path": "." },
+    { "name": "🧩 contratos-dart", "path": "../contratos-dart" },
+    { "name": "⚙️ contratos-api", "path": "../contratos-api" },
+    { "name": "📱 contratos-app", "path": "../contratos-app" },
+    { "name": "🖥️ contratos-portal", "path": "../contratos-portal" }
+  ],
+  "settings": {
+    "files.eol": "\n",
+    "files.encoding": "utf8",
+    "editor.formatOnSave": true,
+    "dart.lineLength": 100
+  },
+  "extensions": {
+    "recommendations": [
+      "Dart-Code.flutter",
+      "Dart-Code.dart-code",
+      "ms-dotnettools.csdevkit",
+      "ms-azuretools.vscode-docker",
+      "yzhang.markdown-all-in-one",
+      "bierner.markdown-mermaid"
+    ]
+  }
+}

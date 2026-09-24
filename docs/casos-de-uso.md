@@ -1,6 +1,6 @@
 # Casos de uso — App-Contratos
 
-> Versión 0.3 · 2026-09-24 · Referencia: [requerimientos.md](requerimientos.md)
+> Versión 0.4 · 2026-09-24 · Referencias: [requerimientos.md](requerimientos.md), [contrato-api.md](contrato-api.md)
 
 ## Índice
 
@@ -34,10 +34,11 @@
 | CU-P04 | Consultar eventos de compra | Oficina |
 | CU-P05 | Dar seguimiento a la entrega | Oficina |
 | CU-P06 | Registrar pagos y gestionar suscripciones | Oficina |
-| CU-P07 | Gestionar catálogo y plantillas | Admin |
+| CU-P07 | Gestionar catálogo de productos | Admin |
 | CU-P08 | Gestionar usuarios | Admin |
 | CU-P09 | Verificar integridad de un documento | Oficina |
 | CU-P10 | Configurar conexión a la base de datos | Superadmin |
+| CU-P11 | Editar contenido de un contrato (plantilla) | Admin |
 
 ---
 
@@ -202,10 +203,30 @@ Muestra: clientes por completar, eventos recibidos hoy, entregas atrasadas, susc
 1. Registra pago (fecha, monto, método, comprobante) ligado a una venta o suscripción.
 2. Consulta suscripciones y cambia su estado (suspender por falta de pago, reactivar, cancelar), con auditoría.
 
-## CU-P07 · Gestionar catálogo y plantillas
+## CU-P07 · Gestionar catálogo
 1. Productos: tipo OFFLINE/ONLINE (el sistema fuerza la modalidad de cobro), funcionalidades, precio, plantilla.
-2. Plantillas: edición con variables y vista previa; cada guardado crea una **nueva versión**.
-3. Los cambios llegan a las Apps en la siguiente sincronización.
+2. Los cambios llegan a las Apps en la siguiente sincronización.
+
+## CU-P11 · Editar contenido de un contrato (plantilla)
+**Actor:** Administrador · Referencia: [requerimientos.md §7.4](requerimientos.md).
+
+1. Abre “Plantillas” y elige una (p. ej. *Contrato SaaS*) o crea una nueva indicando el tipo de documento.
+2. El editor muestra el borrador; al final aparece, en gris y sin poder editarse, el aviso de la **sección de nombres y firmas** que el sistema agrega automáticamente.
+3. Edita el texto con el formato permitido (títulos, negritas, listas, etc.).
+4. Donde debe ir un dato, inserta una **variable** desde el panel lateral: `{{comprador.nombre}}`, `{{vendedor.nombre}}`, `{{comprador.representante}}`, `{{precio.total}}`, etc. Se ve como una etiqueta de color.
+5. Para texto que solo aplica a algunos casos, envuelve el párrafo en un bloque condicional (p. ej. *solo si el producto es online*).
+6. Revisa la **vista previa en PDF** con distintos datos de ejemplo (persona física/moral, offline/online). La vista previa termina con la sección de firmas (líneas vacías con los nombres de vendedor y comprador) y la hoja de constancia.
+7. El borrador se guarda automáticamente.
+8. Pulsa **Publicar** y escribe una nota de cambio. El sistema valida la plantilla y crea una **versión nueva** inmutable.
+9. Las Apps reciben la versión publicada en su próxima sincronización; los eventos nuevos la usan.
+
+**Alternos**
+- **8a. Plantilla inválida** (variable desconocida, bloque sin cerrar): no se publica; se marcan los errores en el texto.
+- **8b. Otro administrador guardó antes:** se avisa del conflicto de versión y se ofrece recargar.
+- **Volver a una versión anterior:** en el historial, “Duplicar como borrador” y publicar de nuevo.
+- **Retirar plantilla:** deja de ofrecerse para eventos nuevos; los documentos ya firmados no cambian.
+
+**Regla:** un documento firmado conserva siempre la versión de plantilla con que se firmó; editar la plantilla nunca modifica documentos existentes.
 
 ## CU-P08 · Gestionar usuarios
 Alta, baja, rol (`VENDEDOR`, `OFICINA`, `ADMIN`, `SUPERADMIN`), restablecer contraseña, cerrar sesiones de un dispositivo perdido.

@@ -1,6 +1,6 @@
 # Estructura base de los contratos
 
-> Versión 0.3 · 2026-09-24
+> Versión 0.4 · 2026-09-24
 >
 > **Aviso:** este documento es una guía de estructura para construir las plantillas del sistema, no asesoría legal. Antes de usar los contratos con clientes reales deben ser revisados y ajustados por un abogado en la jurisdicción donde se venderá (se asume México).
 
@@ -11,7 +11,7 @@
 | **A. Contrato de desarrollo y licencia de uso de software** | Apps **offline** | Pago único |
 | **B. Contrato de prestación de servicios de software por suscripción (SaaS)** | Apps **online** | Mensual o anual, obligatoria |
 
-Ambas comparten la mayoría de cláusulas; cambian las marcadas con **[A]** o **[B]**.
+Ambas comparten la mayoría de cláusulas; cambian las marcadas con **[A]** o **[B]**. En el sistema, las diferencias se resuelven con bloques condicionales (`{{#si producto.online}}`) y los nombres del comprador y del vendedor se insertan con variables (`{{comprador.nombre}}`, `{{vendedor.nombre}}`). El texto se edita desde el Portal (ver [requerimientos.md §7.4](requerimientos.md)).
 
 ### Documentos derivados (uno por evento, cada uno con firma nueva del comprador)
 
@@ -97,22 +97,37 @@ Solo por escrito mediante convenio modificatorio firmado por ambas partes (el si
 Leyes y tribunales de la ciudad que se elija; renuncia al fuero por domicilio presente o futuro.
 
 ### Anexos
-- **Anexo A – Alcance:** funcionalidades incluidas y exclusiones (generado desde el catálogo).
-- **Anexo B – Precio y calendario de pagos.**
-- **Anexo C – Constancia de firma electrónica** (generada por el sistema).
+- **Anexo A – Alcance:** funcionalidades incluidas y exclusiones (variable `{{anexo.alcance}}`, generada desde el catálogo).
+- **Anexo B – Precio y calendario de pagos** (variable `{{anexo.pagos}}`).
+
+### Sección de nombres y firmas (fija, la agrega el sistema)
+No forma parte del texto editable de la plantilla. El generador de PDF la pone **siempre al final del contenido**, después de los anexos, para que la firma abarque todo el documento:
+
+> Leído que fue el presente documento y enteradas las partes de su contenido y alcance legal, lo firman de conformidad en {{evento.lugar}}, el {{evento.fecha}}.
+>
+> | EL VENDEDOR | EL COMPRADOR |
+> |---|---|
+> | *(firma)* | *(firma)* |
+> | ______________________ | ______________________ |
+> | {{vendedor.nombre}} | {{comprador.nombre}} |
+> | Representada por {{vendedor.representante}} | *(si es persona moral)* Representada por {{comprador.representante}} |
+
+Opcionalmente, la plantilla puede activar la **rúbrica en cada página** (firma pequeña del comprador del mismo evento en el margen).
+
+Después va la **hoja de constancia de firma electrónica** generada por el sistema.
 
 ## 3. Qué da fuerza probatoria al documento (y cómo lo cubre el sistema)
 
-| Elemento | Cómo lo cubre la app | Fase |
+| Elemento | Cómo lo cubre la app | Tareas |
 |---|---|---|
-| Identificación del firmante | Identificación oficial obligatoria para registro completo, selfie opcional, OTP | 2 / 3 / 8 |
-| Autoría de la firma | Firma con S Pen + trazo vectorial (presión y ritmo) | 3 |
-| Firma no reutilizable | Firma ligada al hash de un solo documento + cláusula de uso exclusivo | 3 |
-| Consentimiento explícito | Lectura completa obligatoria + casillas de aceptación | 3 |
-| Integridad (que no se alteró) | Hash SHA-256 calculado en la App y **verificado de nuevo por la API** al recibir el evento; verificador en el Portal | 3 / 4 / 5 |
-| Fecha cierta | Hora del dispositivo + hora de recepción en el servidor | 3 / 4 |
-| Conservación | PDF + bitácora en PostgreSQL/almacenamiento del servidor, respaldos fuera del VPS, 10 años | 4 / 7 |
-| Máxima fuerza (sello de tiempo de tercero) | Constancia NOM-151 de un Prestador de Servicios de Certificación | 8 |
-| Firma del vendedor consciente | PIN/biometría en cada contrato, no estampado automático | 3 |
+| Identificación del firmante | Identificación oficial obligatoria para registro completo, selfie opcional, OTP | P1.6, P2.5 · OTP después de v1 |
+| Autoría de la firma | Firma con S Pen + trazo vectorial (presión y ritmo) | P0.2–P0.4 |
+| Firma no reutilizable | Firma ligada al hash de un solo documento + cláusula de uso exclusivo | P2.7 |
+| Consentimiento explícito | Lectura completa obligatoria + casillas de aceptación | P2.4 |
+| Integridad (que no se alteró) | Hash SHA-256 calculado en la App y **verificado de nuevo por la API** al recibir el evento; verificador en el Portal | D2.9, A3.4, W2.6 |
+| Fecha cierta | Hora del dispositivo + hora de recepción en el servidor | P2.6, A3.4 |
+| Conservación | PDF + bitácora en PostgreSQL/almacenamiento del servidor, respaldos fuera del VPS, 10 años | A1.9, A5.3 |
+| Máxima fuerza (sello de tiempo de tercero) | Constancia NOM-151 de un Prestador de Servicios de Certificación | Después de v1 |
+| Firma del vendedor consciente | PIN/biometría en cada contrato, no estampado automático | P2.5 |
 
 **Recomendación práctica:** la firma autógrafa digitalizada es una firma electrónica **simple**; es válida y útil como prueba, pero en caso de disputa la otra parte puede cuestionarla. La combinación de evidencias (identificación + OTP + hash + NOM-151) es lo que la vuelve difícil de refutar.
