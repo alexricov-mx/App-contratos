@@ -78,6 +78,7 @@ contratos-app ──HTTP──► contratos-api ◄──HTTP── contratos-po
 | [contrato-api.md](docs/contrato-api.md) | **Fuente de verdad** de cómo se comunican App, Portal y API |
 | [contrato-base.md](docs/contrato-base.md) | Estructura legal de los contratos y qué les da fuerza probatoria |
 | [plan-ejecucion.md](docs/plan-ejecucion.md) | Calendario, hitos y definición de terminado |
+| [entorno-local.md](docs/entorno-local.md) | Cómo correr todo en tu PC: puertos, usuarios de prueba, Samsung por USB |
 | [planes/](docs/planes/) | Plan de trabajo detallado por repositorio |
 | [proceso/flujo-de-trabajo.md](docs/proceso/flujo-de-trabajo.md) | Cómo trabajan las sesiones de Claude en paralelo y qué documentos genera cada feature |
 | [proceso/plantillas/](docs/proceso/plantillas/) | Plantillas de requerimiento, análisis, plan, pruebas, resumen y estado |

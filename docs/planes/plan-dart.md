@@ -28,6 +28,7 @@ Se consume desde App y Portal como dependencia git con `path` y `ref: vX.Y.Z`.
 | D1.4 | Regla `estadoRegistro` (función pura `calcularEstadoRegistro(Cliente, hoy)` + `camposFaltantes`) idéntica a contrato-api.md §3 | Pruebas: física completa, moral sin poder, INE vencida |
 | D1.5 | Cliente HTTP `ContratosApi` (dio): interceptor de token + refresh, mapeo de ProblemDetails a `ApiException(code, status)`, multipart para `/sync/clientes`, `/eventos`, pagos | Pruebas con servidor falso (`http_mock_adapter`) |
 | D1.6 | `ApiMock`: implementación en memoria de `ContratosApi` con datos semilla (3 clientes, 2 productos, 2 plantillas) | App y Portal pueden arrancar sin API |
+| D1.6b | Documentar en README el uso de `pubspec_overrides.yaml` para probar cambios sin tag ([entorno-local.md §5](../entorno-local.md)) | — |
 | D1.7 | Tag `v0.1.0` | — |
 
 ## D2 · `contratos_pdf` (día 1, tarde)

@@ -8,9 +8,10 @@ Este repositorio es parte de **App-Contratos**. La documentación central está 
 1. `../App-Contratos/README.md` — visión general
 2. `../App-Contratos/docs/proceso/flujo-de-trabajo.md` — **cómo se trabaja** (obligatorio)
 3. `../App-Contratos/docs/planes/plan-portal.md` — **tu plan de trabajo**
-4. `../App-Contratos/docs/contrato-api.md` — fuente de verdad de la comunicación entre componentes
-5. `../App-Contratos/docs/requerimientos.md` y `casos-de-uso.md` — secciones indicadas en tu plan
-6. `ESTADO.md` de este repo
+4. `../App-Contratos/docs/entorno-local.md` — cómo debe correr en local
+5. `../App-Contratos/docs/contrato-api.md` — fuente de verdad de la comunicación entre componentes
+6. `../App-Contratos/docs/requerimientos.md` y `casos-de-uso.md` — secciones indicadas en tu plan
+7. `ESTADO.md` de este repo
 
 ## Reglas
 - **No modificar nada en `../App-Contratos`** ni en otros repositorios. Si necesitas un cambio en la documentación central (sobre todo `contrato-api.md`), escríbelo en la sección 8 de tu `02-analisis.md`, regístralo en `ESTADO.md` como bloqueo y detén solo esa parte hasta que la sesión coordinadora lo apruebe.

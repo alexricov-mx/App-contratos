@@ -22,6 +22,7 @@ Regla central: **la UI solo escribe en repositorios SQLite**. Los servicios `Sin
 | # | Tarea | Aceptación |
 |---|---|---|
 | P0.1 | Proyecto, `CLAUDE.md`, flavors `mock`/`dev`/`prod`, CI (analyze + test + APK) | APK de prueba instalable |
+| P0.1b | **Entorno local** según [entorno-local.md](../entorno-local.md): flavor `dev` con `API_URL=http://localhost:5080/api/v1`, HTTP sin cifrar permitido solo en `dev` y solo para `localhost`, `scripts/dev.ps1` con `adb reverse`, `pubspec_overrides.yaml` en `.gitignore` | `.\scripts\dev.ps1` instala y abre la App en el Samsung |
 | P0.2 | **Widget `LienzoFirma`**: `Listener` sobre pointer events; en modo S Pen solo acepta `PointerDeviceKind.stylus` (e `invertedStylus` = borrar), ignora `touch` (rechazo de palma); interruptor para permitir dedo | Probado en teléfono y tableta Samsung |
 | P0.3 | Grosor variable por presión (`event.pressure`), suavizado (curvas cuadráticas), pantalla completa horizontal, *Borrar* / *Aceptar* | Firma se ve natural |
 | P0.4 | Exportar **PNG** (fondo transparente, 1600×700) y **trazo JSON** (contrato-api.md §5.2) | Prueba unitaria del JSON |

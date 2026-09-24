@@ -22,6 +22,7 @@ El token se guarda en memoria + refresh en `sessionStorage`; nada sensible en `l
 | # | Tarea | Aceptación |
 |---|---|---|
 | W0.1 | Proyecto, `CLAUDE.md`, `Dockerfile` (build web + Nginx con `try_files` para rutas), CI (analyze + test + imagen a GHCR) | Imagen corre local |
+| W0.1b | **Entorno local** según [entorno-local.md](../entorno-local.md): puerto fijo 5090, `API_URL` local por defecto en desarrollo, `scripts/dev.ps1`, `pubspec_overrides.yaml` en `.gitignore` | `.\scripts\dev.ps1` abre el Portal en `http://localhost:5090` |
 | W0.2 | Login, refresh, cierre de sesión, guardias de ruta por rol; menú lateral según rol | — |
 | W0.3 | Tablero (CU-P01) con tarjetas y enlaces a listas filtradas | — |
 | W0.4 | Clientes: lista con búsqueda/filtros/paginación; ficha con pestañas (Datos, Identificación, Contactos, Interacciones, Eventos) | — |
