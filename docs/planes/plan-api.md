@@ -25,7 +25,7 @@
 | A1.6 | Semilla: superadmin (desde variables de entorno), empresa, 2 productos, plantillas semilla (Delta de `contratos_pdf` D2.11, copiadas como JSON) | — |
 | A1.7 | `Auth/Login`, `Auth/Refresh` (rotativo, guardado con hash), `Auth/Logout`, `Auth/2faVerificar` (TOTP) + políticas por rol | Pruebas de integración |
 | A1.8 | Middleware: ProblemDetails, auditoría de escrituras, **modo mantenimiento** (503 + `Retry-After` en escrituras), `/health` | Pruebas |
-| A1.10 | **Entorno local** según [entorno-local.md](../entorno-local.md): `deploy/docker-compose.dev.yml`, perfil `Development` (puerto 5080, CORS `http://localhost:5090`, usuarios semilla), carpeta `.local/` ignorada, `scripts/dev.ps1` | `.\scripts\dev.ps1` levanta BD + API y `/scalar` abre en el navegador |
+| A1.10 | **Entorno local** según [entorno-local.md](../entorno-local.md): reutilizar `deploy/docker-compose.dev.yml` (ya existe, PostgreSQL con BD `contratos`; entorno con **Podman**), perfil `Development` (puerto 5080, CORS `http://localhost:5090`, usuarios semilla), carpeta `.local/` ignorada, `scripts/dev.ps1` | `.\scripts\dev.ps1` levanta BD + API y `/scalar` abre en el navegador |
 | A1.9 | `IAlmacenamientoArchivos` con implementación `Volumen` (cifrado AES-GCM en reposo, ruta `/app/archivos`) y `GET /archivos/{id}` auditado | Pruebas |
 
 ## A2 · CRM, catálogo y plantillas (día 1, tarde)

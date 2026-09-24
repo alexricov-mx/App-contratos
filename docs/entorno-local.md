@@ -1,13 +1,13 @@
 # Entorno local de desarrollo
 
-> Versión 0.1 · 2026-09-24 · Aplica a todos los repositorios. Cada sesión debe construir su parte para que funcione exactamente así.
+> Versión 0.2 · 2026-09-24 · Aplica a todos los repositorios. Cada sesión debe construir su parte para que funcione exactamente así.
 
 ## 1. Cómo se conecta todo en tu PC
 
 ```
 ┌──────────────────────────────── PC Windows ─────────────────────────────────┐
 │                                                                             │
-│  Docker Desktop                                                             │
+│  Podman (máquina WSL)                                                       │
 │   └─ contratos-postgres  (PostgreSQL 17)  localhost:5432                    │
 │                                   ▲                                         │
 │                                   │                                         │
@@ -27,7 +27,7 @@
 
 | Componente | Dirección | Notas |
 |---|---|---|
-| PostgreSQL | `localhost:5432` · BD `contratos_dev` · usuario `contratos` · contraseña `contratos_dev` | Solo desarrollo. Volumen `contratos-pg-dev` |
+| PostgreSQL | `localhost:5432` · BD `contratos` · usuario `contratos` · contraseña `contratos_dev` | Solo desarrollo. Contenedor `contratos-postgres`, volumen `contratos-pg-dev`. Definido en `contratos-api/deploy/docker-compose.dev.yml` (**ya existe**) |
 | API | `http://localhost:5080` | Escucha en `0.0.0.0:5080` en `Development` |
 | Documentación API | `http://localhost:5080/scalar` | |
 | Portal | `http://localhost:5090` | `flutter run -d chrome --web-port 5090` |
@@ -47,7 +47,7 @@
 
 | Repo | Debe incluir |
 |---|---|
-| `contratos-api` | `deploy/docker-compose.dev.yml` con PostgreSQL (y opcionalmente la API en contenedor); perfil `Development` con: URL `http://0.0.0.0:5080`, cadena de conexión a `contratos_dev`, **CORS** permitiendo `http://localhost:5090`, migraciones al inicio, semilla con los usuarios de §2, rutas de `.local/`. Script `scripts/dev.ps1` que levanta PostgreSQL y corre la API |
+| `contratos-api` | Usar el `deploy/docker-compose.dev.yml` existente (PostgreSQL); perfil `Development` con: URL `http://0.0.0.0:5080`, cadena de conexión `Host=localhost;Port=5432;Database=contratos;Username=contratos;Password=contratos_dev`, **CORS** permitiendo `http://localhost:5090`, migraciones al inicio, semilla con los usuarios de §2, rutas de `.local/`. Script `scripts/dev.ps1` que levanta PostgreSQL y corre la API |
 | `contratos-app` | Flavor `dev` con `API_URL=http://localhost:5080/api/v1`; **tráfico HTTP sin cifrar permitido solo en `dev` y solo para `localhost`** (`network_security_config` del flavor); script `scripts/dev.ps1` que ejecuta `adb reverse tcp:5080 tcp:5080` y `flutter run --flavor dev` |
 | `contratos-portal` | `--dart-define=API_URL=http://localhost:5080/api/v1` por defecto en desarrollo; puerto fijo 5090; script `scripts/dev.ps1` |
 | `contratos-dart` | Nada que levantar. Ver §5 para probar cambios sin publicar tag |
@@ -57,7 +57,7 @@
 ```powershell
 # 1. Base de datos + API
 cd C:\Apps\contratos-api
-.\scripts\dev.ps1                 # docker compose -f deploy/docker-compose.dev.yml up -d  +  dotnet run
+.\scripts\dev.ps1                 # podman machine start (si hace falta) + podman compose -f deploy/docker-compose.dev.yml up -d + dotnet run
 
 # 2. Portal
 cd C:\Apps\contratos-portal
@@ -85,15 +85,21 @@ Al terminar, borrarlo y actualizar el tag en `pubspec.yaml` como cambio propio.
 
 ## 6. Preparación de la PC (una sola vez)
 
-1. **Docker Desktop** con backend WSL2: `winget install Docker.DockerDesktop` → reiniciar → abrirlo una vez.
-2. **`adb` en el PATH**: agregar `C:\dev\Android\Sdk\platform-tools` a la variable `Path` del usuario.
-3. **melos**: `dart pub global activate melos` (y agregar `%LOCALAPPDATA%\Pub\Cache\bin` al `Path` si lo pide).
-4. **Samsung**: Ajustes → Acerca del teléfono → Información de software → tocar 7 veces “Número de compilación” → Opciones de desarrollador → Depuración USB. Conectar y aceptar la huella de la PC. Verificar con `adb devices`.
+1. **Podman** (ya instalado, v5.8) con la máquina `podman-machine-default` (WSL). No arranca sola con Windows:
+   ```powershell
+   podman machine start
+   ```
+   `podman compose` usa `docker-compose.exe` como proveedor; todos los comandos `docker compose …` de la documentación funcionan como `podman compose …`.
+2. **Pruebas de la API con Testcontainers**: Podman expone la API compatible con Docker en la tubería por defecto de Windows, así que no hace falta `DOCKER_HOST`. Si el contenedor auxiliar *Ryuk* falla al arrancar, definir `TESTCONTAINERS_RYUK_DISABLED=true` (variable de usuario). Usar imágenes con nombre completo (`docker.io/library/postgres:17-alpine`) porque Podman no resuelve nombres cortos sin preguntar.
+3. **`adb` en el PATH**: agregar `C:\dev\Android\Sdk\platform-tools` a la variable `Path` del usuario.
+4. **melos**: `dart pub global activate melos` (y agregar `%LOCALAPPDATA%\Pub\Cache\bin` al `Path` si lo pide).
+5. **Samsung**: Ajustes → Acerca del teléfono → Información de software → tocar 7 veces “Número de compilación” → Opciones de desarrollador → Depuración USB. Conectar y aceptar la huella de la PC.
 
 Comprobación:
 ```powershell
-docker run --rm hello-world
+podman machine start
+podman compose -f C:\Apps\contratos-api\deploy\docker-compose.dev.yml up -d
+$env:PGPASSWORD='contratos_dev'; psql -h localhost -U contratos -d contratos -c "select version();"
 adb devices
-melos --version
 flutter devices        # debe aparecer el Samsung
 ```
